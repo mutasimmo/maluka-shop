@@ -338,7 +338,8 @@ export default function AdminDashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value) => `${value.toLocaleString()} ج.س`} />
+              <Tooltip formatter={(value) => value ? `${value.toLocaleString()} ج.س` : '0 ج.س'} />
+              
               <Legend />
               <Line type="monotone" dataKey="revenue" stroke="#22c55e" name="الإيرادات" strokeWidth={2} />
             </LineChart>
