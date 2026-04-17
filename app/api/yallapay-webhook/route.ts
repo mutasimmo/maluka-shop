@@ -184,7 +184,7 @@ async function sendConfirmationToCustomer(order: any) {
 📱 يمكنك تتبع طلبك عبر:
 ${process.env.NEXT_PUBLIC_APP_URL}/orders
 
-📞 للاستفسار: 0912345678
+📞 للاستفسار: 0917117123
 
 شكراً لثقتك بنا! 🌟
   `;

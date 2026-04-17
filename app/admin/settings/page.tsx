@@ -37,7 +37,7 @@ export default function AdminSettings() {
     const { data } = await supabase
       .from('shop_settings')
       .select('*');
-    
+
     if (data) {
       const settingsMap = new Map(data.map(s => [s.key, s.value]));
       setSettings({
@@ -55,7 +55,7 @@ export default function AdminSettings() {
 
   const handleSave = async () => {
     setLoading(true);
-    
+
     const updates = [
       { key: 'shop_name', value: { ar: settings.shop_name } },
       { key: 'shop_description', value: { ar: settings.shop_description } },
@@ -93,22 +93,22 @@ export default function AdminSettings() {
             <Package size={24} className="text-green-600" />
             <h2 className="text-xl font-bold">الإعدادات العامة</h2>
           </div>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-gray-700 mb-2">اسم المتجر</label>
               <input
                 type="text"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.shop_name}
                 onChange={(e) => setSettings({ ...settings, shop_name: e.target.value })}
               />
             </div>
-            
+
             <div>
               <label className="block text-gray-700 mb-2">وصف المتجر</label>
               <textarea
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 rows={3}
                 value={settings.shop_description}
                 onChange={(e) => setSettings({ ...settings, shop_description: e.target.value })}
@@ -123,33 +123,33 @@ export default function AdminSettings() {
             <Bell size={24} className="text-green-600" />
             <h2 className="text-xl font-bold">معلومات الاتصال</h2>
           </div>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-gray-700 mb-2">رقم الهاتف</label>
               <input
                 type="tel"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.contact_phone}
                 onChange={(e) => setSettings({ ...settings, contact_phone: e.target.value })}
               />
             </div>
-            
+
             <div>
               <label className="block text-gray-700 mb-2">البريد الإلكتروني</label>
               <input
                 type="email"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.contact_email}
                 onChange={(e) => setSettings({ ...settings, contact_email: e.target.value })}
               />
             </div>
-            
+
             <div>
               <label className="block text-gray-700 mb-2">العنوان</label>
               <input
                 type="text"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.contact_address}
                 onChange={(e) => setSettings({ ...settings, contact_address: e.target.value })}
               />
@@ -163,23 +163,23 @@ export default function AdminSettings() {
             <Truck size={24} className="text-green-600" />
             <h2 className="text-xl font-bold">إعدادات الشحن</h2>
           </div>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-gray-700 mb-2">رسوم التوصيل (ج.س)</label>
               <input
                 type="number"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.delivery_fee}
                 onChange={(e) => setSettings({ ...settings, delivery_fee: parseInt(e.target.value) })}
               />
             </div>
-            
+
             <div>
               <label className="block text-gray-700 mb-2">الحد الأدنى للتوصيل المجاني (ج.س)</label>
               <input
                 type="number"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.free_delivery_min}
                 onChange={(e) => setSettings({ ...settings, free_delivery_min: parseInt(e.target.value) })}
               />
@@ -194,18 +194,18 @@ export default function AdminSettings() {
             <DollarSign size={24} className="text-green-600" />
             <h2 className="text-xl font-bold">إعدادات الدفع</h2>
           </div>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-gray-700 mb-2">العملة</label>
               <input
                 type="text"
-                className="input-field"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={settings.currency}
                 onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
               />
             </div>
-            
+
             <div className="bg-green-50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Shield size={18} className="text-green-600" />
@@ -228,7 +228,7 @@ export default function AdminSettings() {
         <button
           onClick={handleSave}
           disabled={loading}
-          className="btn-primary flex items-center gap-2"
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition duration-200 font-medium flex items-center gap-2"
         >
           <Save size={18} />
           {loading ? 'جاري الحفظ...' : 'حفظ الإعدادات'}

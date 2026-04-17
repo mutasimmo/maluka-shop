@@ -91,7 +91,7 @@ export default function PoliciesPage() {
         <div className="flex flex-wrap justify-center gap-4">
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow">
             <Phone size={18} className="text-green-600" />
-            <span>0912345678</span>
+            <span>0917117123</span>
           </div>
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow">
             <MapPin size={18} className="text-green-600" />
