@@ -6,6 +6,7 @@ import { Product } from '@/lib/supabase';
 import { formatPrice, addToCart } from '@/lib/utils';
 import { ShoppingCart, Check, Star, Eye } from 'lucide-react';
 import { useState } from 'react';
+import Badge from './Badge';
 
 interface ProductCardProps {
   product: Product;
@@ -21,6 +22,26 @@ export default function ProductCard({ product }: ProductCardProps) {
     setTimeout(() => setAdded(false), 2000);
   };
 
+  // تحديد نوع العلامة بناءً على بيانات المنتج
+  const getBadgeType = () => {
+    // مثال: منتج جديد (تمت إضافته خلال 7 أيام)
+    const isNew = new Date(product.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (isNew) return 'new';
+    
+    // مثال: الأكثر مبيعاً (تم بيع أكثر من 50 قطعة)
+    if ((product as any).total_sold > 50) return 'best_seller';
+    
+    // مثال: عرض خاص (إذا كان هناك خصم)
+    if ((product as any).discount > 0) return 'sale';
+    
+    // مثال: كمية محدودة (أقل من 10 قطع)
+    if (product.stock < 10 && product.stock > 0) return 'limited';
+    
+    return null;
+  };
+
+  const badgeType = getBadgeType();
+
   return (
     <div 
       className="group card card-hover animate-fadeInUp"
@@ -31,18 +52,21 @@ export default function ProductCard({ product }: ProductCardProps) {
         <div className="relative h-56 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
           {product.image_url ? (
             <Image
-              src={product.image_url}
-              alt={product.name}
-              fill
-              className={`object-cover transition-transform duration-700 ${
-                isHovered ? 'scale-110' : 'scale-100'
-              }`}
-            />
+  src={product.image_url}
+  alt={product.name}
+  fill
+  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+  className="object-cover transition-transform duration-700 group-hover:scale-110"
+/>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-6xl">
               🛍️
             </div>
           )}
+          
+          {/* العلامات */}
+          {badgeType && <Badge type={badgeType} />}
+          
           {/* Overlay */}
           <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-300 ${
             isHovered ? 'opacity-100' : 'opacity-0'
@@ -52,12 +76,6 @@ export default function ProductCard({ product }: ProductCardProps) {
               عرض المنتج
             </span>
           </div>
-          {/* شارة التخفيض (اختياري) */}
-          {product.stock > 0 && product.stock < 10 && (
-            <div className="absolute top-3 left-3 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-              آخر قطعة!
-            </div>
-          )}
         </div>
       </Link>
       
@@ -68,7 +86,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </h3>
         </Link>
         
-        {/* تقييم وهمي */}
+        {/* تقييم */}
         <div className="flex items-center gap-1 mb-2">
           {[...Array(5)].map((_, i) => (
             <Star key={i} size={14} className="fill-yellow-400 text-yellow-400" />

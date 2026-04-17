@@ -59,7 +59,7 @@ export default function OrdersHomePage() {
           <div className="mt-6 pt-6 border-t text-center">
             <p className="text-gray-400 text-sm flex items-center justify-center gap-2">
               <Phone size={14} />
-              مثال: 0912345678
+              مثال: 0917117123
             </p>
           </div>
         </div>

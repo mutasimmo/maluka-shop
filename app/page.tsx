@@ -2,6 +2,8 @@ import { supabase, Product } from '@/lib/supabase';
 import ProductCard from '@/components/ProductCard';
 import Link from 'next/link';
 import { ArrowLeft, Star, Truck, Shield, Clock, CreditCard } from 'lucide-react';
+import FeatureIcons from '@/components/FeatureIcons';
+import PaymentIcons from '@/components/PaymentIcons';
 
 export default async function HomePage() {
   const { data: products, error } = await supabase
@@ -20,14 +22,12 @@ export default async function HomePage() {
 
   return (
     <main>
-      {/* Hero Section محسن */}
+      {/* Hero Section */}
       <section className="relative min-h-[600px] flex items-center justify-center overflow-hidden">
-        {/* خلفية متحركة */}
         <div className="absolute inset-0 bg-gradient-to-br from-green-900 via-green-700 to-green-600">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1556745757-8d76bdb6984b?w=1600')] bg-cover bg-center opacity-10"></div>
         </div>
         
-        {/* أنيميشن دوائر */}
         <div className="absolute top-20 left-10 w-64 h-64 bg-yellow-400/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
         
@@ -68,6 +68,11 @@ export default async function HomePage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* FeatureIcons */}
+      <section className="container-custom py-8">
+        <FeatureIcons />
       </section>
 
       {/* منتجات مميزة */}
@@ -122,6 +127,12 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* PaymentIcons */}
+      <section className="container-custom py-8 text-center">
+        <h3 className="text-lg font-semibold mb-4">طرق الدفع المتاحة</h3>
+        <PaymentIcons />
       </section>
     </main>
   );

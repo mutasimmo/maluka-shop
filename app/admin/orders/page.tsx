@@ -8,6 +8,7 @@ import {
   Truck, Home, Filter, Download
 } from 'lucide-react';
 import Link from 'next/link';
+import { sendWhatsAppMessage, getOrderStatusMessage } from '@/lib/whatsapp';
 
 interface Order {
   id: string;
@@ -44,20 +45,54 @@ export default function AdminOrders() {
     setLoading(false);
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from('orders')
-      .update({ payment_status: newStatus })
-      .eq('id', orderId);
+  
 
-    if (!error) {
-      alert('تم تحديث حالة الطلب');
-      fetchOrders();
-      if (selectedOrder) setSelectedOrder(null);
-    } else {
-      alert('حدث خطأ في تحديث الحالة');
-    }
-  };
+const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  // جلب بيانات الطلب أولاً
+  const { data: order } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+
+  const { error } = await supabase
+    .from('orders')
+    .update({ payment_status: newStatus })
+    .eq('id', orderId);
+
+  if (!error) {
+    // إرسال إشعار واتساب للعميل
+    const statusText = getStatusText(newStatus);
+    const customerMessage = getOrderStatusMessage(
+      order.order_number,
+      order.customer_name,
+      newStatus,
+      statusText
+    );
+    const whatsappLink = sendWhatsAppMessage(order.customer_phone, customerMessage);
+    
+    // فتح واتساب (اختياري - يمكن تعطيله للتشغيل التلقائي)
+     window.open(whatsappLink, '_blank');
+    
+    alert('تم تحديث حالة الطلب وإرسال إشعار للعميل');
+    fetchOrders();
+    if (selectedOrder) setSelectedOrder(null);
+  } else {
+    alert('حدث خطأ في تحديث الحالة');
+  }
+};
+
+// دالة مساعدة للحصول على نص الحالة
+const getStatusText = (status: string): string => {
+  switch (status) {
+    case 'pending': return 'قيد المعالجة';
+    case 'paid': return 'مدفوع';
+    case 'shipped': return 'تم الشحن';
+    case 'delivered': return 'تم التوصيل';
+    case 'failed': return 'فشل الدفع';
+    default: return status;
+  }
+};
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {

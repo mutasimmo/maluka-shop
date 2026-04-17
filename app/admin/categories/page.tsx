@@ -1,16 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Plus, Edit, Trash2, Tag, X } from 'lucide-react';
-
-interface Category {
-  id: string;
-  name: string;
-  name_en: string;
-  icon: string;
-  product_count: number;
-}
+import { supabase, Category } from '@/lib/supabase';
+import { Plus, Edit, Trash2, Tag, X, Save } from 'lucide-react';
 
 export default function AdminCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -21,6 +13,7 @@ export default function AdminCategories() {
     name: '',
     name_en: '',
     icon: '📦',
+    description: '',
   });
 
   useEffect(() => {
@@ -29,63 +22,74 @@ export default function AdminCategories() {
 
   const fetchCategories = async () => {
     setLoading(true);
-    
-    // جلب التصنيفات من المنتجات الموجودة
-    const { data: products } = await supabase
-      .from('products')
-      .select('category');
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name');
 
-    const categoryMap = new Map<string, number>();
-    products?.forEach(p => {
-      if (p.category) {
-        categoryMap.set(p.category, (categoryMap.get(p.category) || 0) + 1);
-      }
-    });
-
-    const categoriesList: Category[] = Array.from(categoryMap.entries()).map(([name, count]) => ({
-      id: name,
-      name: name,
-      name_en: name,
-      icon: getIconForCategory(name),
-      product_count: count,
-    }));
-
-    setCategories(categoriesList);
+    if (!error && data) setCategories(data);
     setLoading(false);
-  };
-
-  const getIconForCategory = (category: string): string => {
-    const icons: Record<string, string> = {
-      'ملابس': '👕',
-      'إلكترونيات': '📱',
-      'طعام': '🍕',
-      'مشروبات': '🥤',
-      'تجميل': '💄',
-      'منزل': '🏠',
-      'ألعاب': '🎮',
-      'كتب': '📚',
-    };
-    return icons[category] || '📦';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // التصنيفات مشتقة من المنتجات، لا تحتاج إلى جدول منفصل
-    alert('التصنيفات تُستخرج تلقائياً من المنتجات');
-    closeModal();
+    setLoading(true);
+
+    const categoryData = {
+      name: formData.name,
+      name_en: formData.name_en,
+      icon: formData.icon,
+      description: formData.description,
+      is_active: true,
+    };
+
+    if (editingCategory) {
+      const { error } = await supabase
+        .from('categories')
+        .update(categoryData)
+        .eq('id', editingCategory.id);
+      
+      if (!error) {
+        alert('تم تحديث التصنيف بنجاح');
+        closeModal();
+        fetchCategories();
+      } else {
+        alert('حدث خطأ في تحديث التصنيف');
+      }
+    } else {
+      const { error } = await supabase.from('categories').insert([categoryData]);
+      if (!error) {
+        alert('تم إضافة التصنيف بنجاح');
+        closeModal();
+        fetchCategories();
+      } else {
+        alert('حدث خطأ في إضافة التصنيف');
+      }
+    }
+    setLoading(false);
   };
 
   const handleDelete = async (category: Category) => {
-    if (confirm(`حذف التصنيف "${category.name}" سيؤثر على المنتجات. هل أنت متأكد؟`)) {
-      // هنا يمكن تحديث المنتجات لإزالة التصنيف
-      alert('يمكنك تحديث المنتجات يدوياً لإزالة هذا التصنيف');
+    if (confirm(`هل أنت متأكد من حذف التصنيف "${category.name}"؟`)) {
+      const { error } = await supabase.from('categories').delete().eq('id', category.id);
+      if (!error) {
+        alert('تم حذف التصنيف بنجاح');
+        fetchCategories();
+      } else {
+        alert('حدث خطأ في حذف التصنيف');
+      }
     }
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingCategory(null);
-    setFormData({ name: '', name_en: '', icon: '📦' });
+    setFormData({
+      name: '',
+      name_en: '',
+      icon: '📦',
+      description: '',
+    });
   };
 
   if (loading) {
@@ -98,43 +102,40 @@ export default function AdminCategories() {
 
   return (
     <div>
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">التصنيفات</h1>
           <p className="text-gray-500 mt-1">إدارة تصنيفات المنتجات</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-2"
-        >
+        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
           <Plus size={18} />
           إضافة تصنيف
         </button>
       </div>
 
-      {/* Categories Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {categories.map((category) => (
-          <div key={category.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition group">
-            <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 text-center text-white">
-              <div className="text-5xl mb-2">{category.icon}</div>
+          <div key={category.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition">
+            <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-white">
+              <div className="text-4xl mb-2">{category.icon}</div>
               <h3 className="text-xl font-bold">{category.name}</h3>
-              <p className="text-sm text-white/80">{category.name_en}</p>
+              {category.name_en && (
+                <p className="text-sm text-white/80">{category.name_en}</p>
+              )}
             </div>
             <div className="p-4">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-gray-500">عدد المنتجات</span>
-                <span className="font-bold text-green-600">{category.product_count}</span>
-              </div>
+              {category.description && (
+                <p className="text-gray-500 text-sm mb-3 line-clamp-2">{category.description}</p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setEditingCategory(category);
                     setFormData({
                       name: category.name,
-                      name_en: category.name_en,
+                      name_en: category.name_en || '',
                       icon: category.icon,
+                      description: category.description || '',
                     });
                     setShowModal(true);
                   }}
@@ -145,7 +146,7 @@ export default function AdminCategories() {
                 </button>
                 <button
                   onClick={() => handleDelete(category)}
-                  className="btn-danger text-sm flex items-center justify-center gap-1"
+                  className="flex-1 btn-danger text-sm flex items-center justify-center gap-1"
                 >
                   <Trash2 size={14} />
                   حذف
@@ -160,7 +161,9 @@ export default function AdminCategories() {
         <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
           <Tag size={48} className="mx-auto text-gray-300 mb-4" />
           <p className="text-gray-500">لا توجد تصنيفات</p>
-          <p className="text-gray-400 text-sm">أضف تصنيفات عند إضافة المنتجات</p>
+          <button onClick={() => setShowModal(true)} className="btn-primary mt-4">
+            أضف أول تصنيف
+          </button>
         </div>
       )}
 
@@ -180,7 +183,7 @@ export default function AdminCategories() {
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <label className="block text-gray-700 mb-2">اسم التصنيف (عربي)</label>
+                  <label className="block text-gray-700 mb-2">اسم التصنيف (عربي) *</label>
                   <input
                     type="text"
                     required
@@ -195,12 +198,13 @@ export default function AdminCategories() {
                   <input
                     type="text"
                     className="input-field"
+                    placeholder="مثال: Electronics"
                     value={formData.name_en}
                     onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
                   />
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-gray-700 mb-2">الأيقونة</label>
                   <input
                     type="text"
@@ -212,9 +216,20 @@ export default function AdminCategories() {
                   <p className="text-xs text-gray-400 mt-1">استخدم إيموجي أو رمز تعبيري</p>
                 </div>
 
+                <div className="mb-6">
+                  <label className="block text-gray-700 mb-2">الوصف</label>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    placeholder="وصف التصنيف..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+
                 <div className="flex gap-3">
-                  <button type="submit" className="btn-primary flex-1">
-                    {editingCategory ? 'تحديث' : 'إضافة'}
+                  <button type="submit" disabled={loading} className="btn-primary flex-1">
+                    {loading ? 'جاري الحفظ...' : (editingCategory ? 'تحديث' : 'إضافة')}
                   </button>
                   <button type="button" onClick={closeModal} className="btn-secondary flex-1">
                     إلغاء

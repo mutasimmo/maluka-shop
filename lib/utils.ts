@@ -1,7 +1,8 @@
-import { Product, CartItem } from './supabase';  // تغيير المصدر
+import { Product, CartItem } from './supabase';
 
 export const formatPrice = (price: number): string => {
-  return `${price.toLocaleString()} ج.س`;
+  // تحديد اللغة العربية بشكل واضح لتوحيد التنسيق بين الخادم والمتصفح
+  return `${price.toLocaleString('ar-EG')} ج.س`;
 };
 
 export const generateOrderNumber = (): string => {

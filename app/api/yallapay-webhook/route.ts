@@ -1,22 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// YallaPay Webhook secret for verification
-const WEBHOOK_SECRET = process.env.YALLAPAY_WEBHOOK_SECRET || '';
+// ============================================
+// Webhook لاستقبال إشعارات الدفع من YallaPay
+// ⚠️ هذا الملف موجود ولكن غير نشط حالياً
+// سيعمل تلقائياً عند تفعيل YallaPay
+// ============================================
 
+// GET endpoint للتحقق من صحة الويب هوك
+export async function GET(request: NextRequest) {
+  return NextResponse.json({ 
+    status: 'YallaPay webhook endpoint is active',
+    enabled: process.env.NEXT_PUBLIC_YALLAPAY_ENABLED === 'true',
+    message: 'هذا المسار مخصص لاستقبال إشعارات الدفع من YallaPay'
+  });
+}
+
+// POST endpoint لاستقبال الإشعارات
 export async function POST(request: NextRequest) {
+  // التحقق مما إذا كان YallaPay مفعلاً
+  if (process.env.NEXT_PUBLIC_YALLAPAY_ENABLED !== 'true') {
+    console.log('⚠️ YallaPay webhook received but YallaPay is disabled');
+    return NextResponse.json({ received: true, disabled: true });
+  }
+
   try {
-    // Verify webhook signature (optional but recommended)
-    const signature = request.headers.get('x-yallapay-signature');
-    
-    // Get webhook payload
     const payload = await request.json();
-    
-    console.log('YallaPay webhook received:', payload);
+    console.log('📨 YallaPay webhook received:', payload);
 
     const { event, data } = payload;
 
-    // Handle different webhook events
+    // معالجة الأحداث المختلفة
     switch (event) {
       case 'payment.successful':
         await handleSuccessfulPayment(data);
@@ -31,13 +45,13 @@ export async function POST(request: NextRequest) {
         break;
       
       default:
-        console.log(`Unhandled webhook event: ${event}`);
+        console.log(`⚠️ Unhandled webhook event: ${event}`);
     }
 
     return NextResponse.json({ received: true });
 
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('❌ Webhook error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -45,11 +59,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle successful payment
+// ============================================
+// دوال معالجة الأحداث (Event Handlers)
+// ============================================
+
+// معالجة الدفع الناجح
 async function handleSuccessfulPayment(data: any) {
   const { clientReferenceId, referenceId, amount, paymentMethod } = data;
 
-  // Update order status
+  console.log(`✅ Processing successful payment for order: ${clientReferenceId}`);
+
+  // تحديث حالة الطلب في قاعدة البيانات
   const { error } = await supabase
     .from('orders')
     .update({
@@ -59,11 +79,11 @@ async function handleSuccessfulPayment(data: any) {
     .eq('id', clientReferenceId);
 
   if (error) {
-    console.error('Error updating order:', error);
+    console.error('❌ Error updating order:', error);
     return;
   }
 
-  // Get order details
+  // جلب تفاصيل الطلب لإرسال الإشعارات
   const { data: order } = await supabase
     .from('orders')
     .select('*')
@@ -71,19 +91,21 @@ async function handleSuccessfulPayment(data: any) {
     .single();
 
   if (order) {
-    // Send notification to merchant (WhatsApp/Email)
+    // إرسال إشعار للتاجر
     await sendNotificationToMerchant(order);
     
-    // Send confirmation to customer (SMS/WhatsApp)
+    // إرسال تأكيد للعميل
     await sendConfirmationToCustomer(order);
   }
 
-  console.log(`Payment successful for order ${clientReferenceId}`);
+  console.log(`✅ Payment successful for order ${clientReferenceId}`);
 }
 
-// Handle failed payment
+// معالجة الدفع الفاشل
 async function handleFailedPayment(data: any) {
   const { clientReferenceId, referenceId, errorMessage } = data;
+
+  console.log(`❌ Processing failed payment for order: ${clientReferenceId}`);
 
   const { error } = await supabase
     .from('orders')
@@ -94,15 +116,17 @@ async function handleFailedPayment(data: any) {
     .eq('id', clientReferenceId);
 
   if (error) {
-    console.error('Error updating order status:', error);
+    console.error('❌ Error updating order status:', error);
   }
 
-  console.log(`Payment failed for order ${clientReferenceId}: ${errorMessage}`);
+  console.log(`❌ Payment failed for order ${clientReferenceId}: ${errorMessage || 'Unknown error'}`);
 }
 
-// Handle refunded payment
+// معالجة استرداد المبلغ
 async function handleRefundedPayment(data: any) {
   const { clientReferenceId, referenceId } = data;
+
+  console.log(`🔄 Processing refund for order: ${clientReferenceId}`);
 
   const { error } = await supabase
     .from('orders')
@@ -112,57 +136,63 @@ async function handleRefundedPayment(data: any) {
     .eq('id', clientReferenceId);
 
   if (error) {
-    console.error('Error updating order status:', error);
+    console.error('❌ Error updating order status:', error);
   }
 
-  console.log(`Payment refunded for order ${clientReferenceId}`);
+  console.log(`🔄 Payment refunded for order ${clientReferenceId}`);
 }
 
-// Send notification to merchant
+// ============================================
+// دوال الإشعارات (Notification Functions)
+// ============================================
+
+// إرسال إشعار للتاجر
 async function sendNotificationToMerchant(order: any) {
   const merchantPhone = process.env.MERCHANT_PHONE || '249123456789';
   
-  // WhatsApp notification (using WhatsApp API or similar)
   const message = `
-    🛍️ طلب جديد - ملوكا شوب
-    
-    رقم الطلب: ${order.order_number}
-    العميل: ${order.customer_name}
-    الهاتف: ${order.customer_phone}
-    المبلغ: ${order.total_amount} ج.س
-    
-    تم الدفع بنجاح ✓
+🛍️ طلب جديد - ملوكا شوب
+
+📋 رقم الطلب: ${order.order_number}
+👤 العميل: ${order.customer_name}
+📞 الهاتف: ${order.customer_phone}
+💰 المبلغ: ${order.total_amount} ج.س
+
+✅ تم الدفع بنجاح
+
+📅 التاريخ: ${new Date().toLocaleString('ar')}
   `;
 
   try {
-    // You can integrate with WhatsApp Business API or SMS service here
-    console.log('Sending notification to merchant:', message);
+    // TODO: دمج مع واتساب API أو خدمة SMS
+    console.log('📱 Merchant notification:', message);
   } catch (error) {
-    console.error('Error sending merchant notification:', error);
+    console.error('❌ Error sending merchant notification:', error);
   }
 }
 
-// Send confirmation to customer
+// إرسال تأكيد للعميل
 async function sendConfirmationToCustomer(order: any) {
   const message = `
-    شكراً لتسوقك مع ملوكا شوب 🛍️
-    
-    رقم طلبك: ${order.order_number}
-    المبلغ: ${order.total_amount} ج.س
-    
-    سيتم تجهيز طلبك وشحنه قريباً.
-    يمكنك تتبع طلبك عبر: ${process.env.NEXT_PUBLIC_APP_URL}/orders
+🛍️ شكراً لتسوقك مع ملوكا شوب
+
+✅ تم تأكيد طلبك رقم: ${order.order_number}
+💰 المبلغ: ${order.total_amount} ج.س
+
+🚚 سيتم تجهيز طلبك وشحنه قريباً.
+
+📱 يمكنك تتبع طلبك عبر:
+${process.env.NEXT_PUBLIC_APP_URL}/orders
+
+📞 للاستفسار: 0912345678
+
+شكراً لثقتك بنا! 🌟
   `;
 
   try {
-    // You can integrate with SMS service or WhatsApp API here
-    console.log('Sending confirmation to customer:', message);
+    // TODO: دمج مع واتساب API أو خدمة SMS
+    console.log('📱 Customer confirmation:', message);
   } catch (error) {
-    console.error('Error sending customer confirmation:', error);
+    console.error('❌ Error sending customer confirmation:', error);
   }
-}
-
-// GET endpoint for webhook verification (some providers require this)
-export async function GET(request: NextRequest) {
-  return NextResponse.json({ status: 'Webhook endpoint is active' });
 }

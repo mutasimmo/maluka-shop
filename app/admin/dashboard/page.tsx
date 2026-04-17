@@ -9,13 +9,32 @@ import {
   Users, 
   DollarSign,
   TrendingUp,
-  TrendingDown,
   Clock,
   CheckCircle,
   XCircle,
-  Eye
+  Eye,
+  AlertCircle,
+  TrendingDown,
+  Calendar,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 
 interface DashboardStats {
   totalOrders: number;
@@ -26,6 +45,18 @@ interface DashboardStats {
   paidOrders: number;
   todayOrders: number;
   thisMonthRevenue: number;
+  lastMonthRevenue: number;
+  revenueChange: number;
+  ordersChange: number;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  stock: number;
+  reorder_point: number;
+  total_sold: number;
+  price: number;
 }
 
 export default function AdminDashboard() {
@@ -38,9 +69,16 @@ export default function AdminDashboard() {
     paidOrders: 0,
     todayOrders: 0,
     thisMonthRevenue: 0,
+    lastMonthRevenue: 0,
+    revenueChange: 0,
+    ordersChange: 0,
   });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [productsLowStock, setProductsLowStock] = useState<Product[]>([]);
+  const [topProducts, setTopProducts] = useState<Product[]>([]);
+  const [monthlySales, setMonthlySales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState('month');
 
   useEffect(() => {
     fetchDashboardData();
@@ -60,38 +98,93 @@ export default function AdminDashboard() {
       .from('products')
       .select('*', { count: 'exact', head: true });
 
-    // جلب عدد العملاء المميزين
-    const { data: customers } = await supabase
-      .from('orders')
-      .select('customer_phone')
-      .order('customer_phone');
+    // جلب المنتجات منخفضة المخزون
+    const { data: products } = await supabase
+      .from('products')
+      .select('*');
 
-    const uniqueCustomers = new Set(customers?.map(c => c.customer_phone));
+    const lowStock = products?.filter(p => p.stock <= (p.reorder_point || 5)) || [];
+    setProductsLowStock(lowStock);
+
+    // حساب المنتجات الأكثر مبيعاً
+    const topSelling = [...(products || [])]
+      .sort((a, b) => (b.total_sold || 0) - (a.total_sold || 0))
+      .slice(0, 5);
+    setTopProducts(topSelling);
+
+    // جلب عدد العملاء المميزين
+    const uniqueCustomers = new Set(orders?.map(o => o.customer_phone));
     
     // حساب الإحصائيات
-    const today = new Date().toDateString();
-    const thisMonth = new Date().getMonth();
-    const thisYear = new Date().getFullYear();
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
     let totalRevenue = 0;
     let pendingOrders = 0;
     let paidOrders = 0;
     let todayOrders = 0;
     let thisMonthRevenue = 0;
+    let lastMonthRevenue = 0;
+    let lastMonthOrders = 0;
+    const today = new Date().toDateString();
 
+    // إحصائيات الشهرية للرسم البياني
+    const monthlyData: Record<string, { revenue: number; orders: number }> = {};
+    
     orders?.forEach(order => {
+      const orderDate = new Date(order.created_at);
+      const monthKey = `${orderDate.getFullYear()}-${orderDate.getMonth() + 1}`;
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { revenue: 0, orders: 0 };
+      }
+      
       if (order.payment_status === 'paid') {
         totalRevenue += order.total_amount;
         paidOrders++;
+        
+        if (orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear) {
+          thisMonthRevenue += order.total_amount;
+        }
+        if (orderDate.getMonth() === lastMonth && orderDate.getFullYear() === lastMonthYear) {
+          lastMonthRevenue += order.total_amount;
+        }
+        
+        monthlyData[monthKey].revenue += order.total_amount;
+        monthlyData[monthKey].orders++;
       }
+      
       if (order.payment_status === 'pending') pendingOrders++;
       
-      const orderDate = new Date(order.created_at);
       if (orderDate.toDateString() === today) todayOrders++;
-      if (orderDate.getMonth() === thisMonth && orderDate.getFullYear() === thisYear) {
-        if (order.payment_status === 'paid') thisMonthRevenue += order.total_amount;
+      if (orderDate.getMonth() === lastMonth && orderDate.getFullYear() === lastMonthYear) {
+        lastMonthOrders++;
       }
     });
+
+    // تحويل البيانات للرسم البياني
+    const chartData = Object.entries(monthlyData)
+      .map(([key, data]) => {
+        const [year, month] = key.split('-');
+        return {
+          month: `${year}/${month}`,
+          revenue: data.revenue,
+          orders: data.orders,
+        };
+      })
+      .slice(-6); // آخر 6 أشهر
+
+    setMonthlySales(chartData);
+
+    const revenueChange = lastMonthRevenue > 0 
+      ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 
+      : 0;
+    const ordersChange = lastMonthOrders > 0 
+      ? ((orders?.length || 0 - lastMonthOrders) / lastMonthOrders) * 100 
+      : 0;
 
     setStats({
       totalOrders: orders?.length || 0,
@@ -102,59 +195,16 @@ export default function AdminDashboard() {
       paidOrders,
       todayOrders,
       thisMonthRevenue,
+      lastMonthRevenue,
+      revenueChange,
+      ordersChange,
     });
 
     setRecentOrders(orders?.slice(0, 5) || []);
     setLoading(false);
   };
 
-  const statCards = [
-    {
-      title: 'إجمالي الطلبات',
-      value: stats.totalOrders,
-      icon: ShoppingBag,
-      color: 'bg-blue-500',
-      bgColor: 'bg-blue-100',
-      textColor: 'text-blue-600',
-    },
-    {
-      title: 'الإيرادات',
-      value: formatPrice(stats.totalRevenue),
-      icon: DollarSign,
-      color: 'bg-green-500',
-      bgColor: 'bg-green-100',
-      textColor: 'text-green-600',
-    },
-    {
-      title: 'المنتجات',
-      value: stats.totalProducts,
-      icon: Package,
-      color: 'bg-purple-500',
-      bgColor: 'bg-purple-100',
-      textColor: 'text-purple-600',
-    },
-    {
-      title: 'العملاء',
-      value: stats.totalCustomers,
-      icon: Users,
-      color: 'bg-orange-500',
-      bgColor: 'bg-orange-100',
-      textColor: 'text-orange-600',
-    },
-  ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <span className="badge-success flex items-center gap-1"><CheckCircle size={12} /> مدفوع</span>;
-      case 'pending':
-        return <span className="badge-warning flex items-center gap-1"><Clock size={12} /> قيد المعالجة</span>;
-      case 'failed':
-        return <span className="badge-danger flex items-center gap-1"><XCircle size={12} /> فشل</span>;
-      default:
-        return <span className="badge">{status}</span>;
-    }
-  };
+  const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   if (loading) {
     return (
@@ -174,22 +224,65 @@ export default function AdminDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <div key={index} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-gray-500 text-sm mb-1">{card.title}</p>
-                  <p className={`text-2xl font-bold ${card.textColor}`}>{card.value}</p>
-                </div>
-                <div className={`${card.bgColor} p-3 rounded-xl`}>
-                  <Icon size={24} className={card.textColor} />
-                </div>
+        <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-gray-500 text-sm mb-1">إجمالي الإيرادات</p>
+              <p className="text-2xl font-bold text-green-600">{formatPrice(stats.totalRevenue)}</p>
+              <div className={`flex items-center gap-1 text-xs mt-2 ${stats.revenueChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {stats.revenueChange >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                <span>{Math.abs(stats.revenueChange).toFixed(1)}% من الشهر الماضي</span>
               </div>
             </div>
-          );
-        })}
+            <div className="bg-green-100 p-3 rounded-xl">
+              <DollarSign size={24} className="text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-gray-500 text-sm mb-1">إجمالي الطلبات</p>
+              <p className="text-2xl font-bold text-blue-600">{stats.totalOrders}</p>
+              <div className={`flex items-center gap-1 text-xs mt-2 ${stats.ordersChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {stats.ordersChange >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                <span>{Math.abs(stats.ordersChange).toFixed(1)}% من الشهر الماضي</span>
+              </div>
+            </div>
+            <div className="bg-blue-100 p-3 rounded-xl">
+              <ShoppingBag size={24} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-gray-500 text-sm mb-1">المنتجات</p>
+              <p className="text-2xl font-bold text-purple-600">{stats.totalProducts}</p>
+              {productsLowStock.length > 0 && (
+                <p className="text-xs text-orange-500 mt-2">{productsLowStock.length} منتج منخفض المخزون</p>
+              )}
+            </div>
+            <div className="bg-purple-100 p-3 rounded-xl">
+              <Package size={24} className="text-purple-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-gray-500 text-sm mb-1">العملاء</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.totalCustomers}</p>
+              <p className="text-xs text-gray-400 mt-2">عميل مسجل</p>
+            </div>
+            <div className="bg-orange-100 p-3 rounded-xl">
+              <Users size={24} className="text-orange-600" />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Secondary Stats */}
@@ -218,7 +311,7 @@ export default function AdminDashboard() {
               <p className="text-blue-600 text-sm">طلبات اليوم</p>
               <p className="text-2xl font-bold text-blue-700">{stats.todayOrders}</p>
             </div>
-            <TrendingUp size={32} className="text-blue-500" />
+            <Calendar size={32} className="text-blue-500" />
           </div>
         </div>
         <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-2xl p-4">
@@ -231,6 +324,94 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Charts Section */}
+      <div className="grid lg:grid-cols-2 gap-6 mb-8">
+        {/* Revenue Chart */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <TrendingUp size={20} className="text-green-600" />
+            الإيرادات الشهرية
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={monthlySales}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip formatter={(value) => `${value.toLocaleString()} ج.س`} />
+              <Legend />
+              <Line type="monotone" dataKey="revenue" stroke="#22c55e" name="الإيرادات" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Orders Chart */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <ShoppingBag size={20} className="text-blue-600" />
+            عدد الطلبات الشهرية
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={monthlySales}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="orders" fill="#3b82f6" name="الطلبات" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Low Stock Alert */}
+      {productsLowStock.length > 0 && (
+        <div className="bg-orange-50 rounded-2xl p-6 mb-8 border border-orange-200">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle size={24} className="text-orange-500" />
+            <h2 className="text-xl font-bold text-orange-700">تنبيه: منتجات منخفضة المخزون</h2>
+          </div>
+          <div className="grid gap-3">
+            {productsLowStock.map((product) => (
+              <div key={product.id} className="flex justify-between items-center p-3 bg-white rounded-xl">
+                <div>
+                  <p className="font-medium">{product.name}</p>
+                  <p className="text-sm text-orange-600">المتبقي: {product.stock} قطعة</p>
+                </div>
+                <Link href="/admin/products" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition text-sm">
+                  تحديث المخزون
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top Products */}
+      {topProducts.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <TrendingUp size={20} className="text-yellow-500" />
+            الأكثر مبيعاً
+          </h2>
+          <div className="space-y-3">
+            {topProducts.map((product, index) => (
+              <div key={product.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold">
+                    #{index + 1}
+                  </div>
+                  <div>
+                    <p className="font-medium">{product.name}</p>
+                    <p className="text-sm text-gray-500">تم بيع {product.total_sold || 0} قطعة</p>
+                  </div>
+                </div>
+                <p className="font-bold text-green-600">{formatPrice((product.total_sold || 0) * product.price)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recent Orders */}
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
@@ -259,11 +440,20 @@ export default function AdminDashboard() {
                   <td className="px-6 py-4 font-medium">{order.order_number}</td>
                   <td className="px-6 py-4">{order.customer_name}</td>
                   <td className="px-6 py-4 font-bold text-green-600">{formatPrice(order.total_amount)}</td>
-                  <td className="px-6 py-4">{getStatusBadge(order.payment_status)}</td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      order.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                      order.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {order.payment_status === 'paid' ? 'مدفوع' :
+                       order.payment_status === 'pending' ? 'قيد المعالجة' : 'فشل'}
+                    </span>
+                   </td>
                   <td className="px-6 py-4 text-gray-500">
                     {new Date(order.created_at).toLocaleDateString('ar')}
-                  </td>
-                </tr>
+                   </td>
+                 </tr>
               ))}
             </tbody>
           </table>

@@ -19,7 +19,7 @@ export default function AdminSettings() {
   const [settings, setSettings] = useState<Settings>({
     shop_name: 'ملوكا شوب',
     shop_description: 'متجر سوداني يقدم أفضل المنتجات المحلية الأصيلة',
-    contact_phone: '0912345678',
+    contact_phone: '0917117123',
     contact_email: 'info@malukashop.com',
     contact_address: 'الخرطوم، السودان',
     delivery_fee: 500,
@@ -43,7 +43,7 @@ export default function AdminSettings() {
       setSettings({
         shop_name: settingsMap.get('shop_name')?.ar || 'ملوكا شوب',
         shop_description: settingsMap.get('shop_description')?.ar || '',
-        contact_phone: settingsMap.get('contact_phone')?.value || '0912345678',
+        contact_phone: settingsMap.get('contact_phone')?.value || '0917117123',
         contact_email: settingsMap.get('contact_email')?.value || 'info@malukashop.com',
         contact_address: settingsMap.get('contact_address')?.value || 'الخرطوم، السودان',
         delivery_fee: settingsMap.get('delivery_fee')?.value || 500,

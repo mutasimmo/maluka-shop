@@ -3,9 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadCart, getCartTotal, formatPrice, clearCart, generateOrderNumber } from '@/lib/utils';
-import { CartItem, OrderInput } from '@/lib/supabase';  // تغيير المصدر
+import { CartItem } from '@/lib/supabase';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle, Truck, CreditCard } from 'lucide-react';
+import { CheckCircle, Truck, CreditCard, Tag, X } from 'lucide-react';
+import { sendWhatsAppMessage, getCustomerOrderMessage, getMerchantNewOrderMessage } from '@/lib/whatsapp';
+import { validateCoupon, recordCouponUsage } from '@/lib/coupons';
+import { isYallaPayEnabled, createYallaPayPayment } from '@/lib/yallapay';
+
+// رقم واتساب التاجر
+const MERCHANT_WHATSAPP = '249123456789'; // استبدل برقمك
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -19,6 +25,13 @@ export default function CheckoutPage() {
     payment_method: 'cash',
   });
 
+  // كوبونات الخصم
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponError, setCouponError] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
+
   useEffect(() => {
     const cartItems = loadCart();
     if (cartItems.length === 0) {
@@ -30,6 +43,26 @@ export default function CheckoutPage() {
   const subtotal = getCartTotal(cart);
   const deliveryFee = 500;
   const total = subtotal + deliveryFee;
+  const finalTotal = total - discountAmount;
+
+  // دالة تطبيق الكوبون
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    setCouponLoading(true);
+    setCouponError('');
+
+    const result = await validateCoupon(couponCode, subtotal);
+    
+    if (result.valid) {
+      setAppliedCoupon(result.coupon);
+      setDiscountAmount(result.discount_amount || 0);
+      setCouponCode('');
+    } else {
+      setCouponError(result.error || 'كوبون غير صالح');
+    }
+    
+    setCouponLoading(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +71,22 @@ export default function CheckoutPage() {
 
     const orderNumber = generateOrderNumber();
     
+    // حساب التكلفة الإجمالية والربح
+    let totalCost = 0;
+    for (const item of cart) {
+      const { data: product } = await supabase
+        .from('products')
+        .select('cost_price')
+        .eq('id', item.product_id)
+        .single();
+      if (product && product.cost_price) {
+        totalCost += product.cost_price * item.quantity;
+      }
+    }
+    const totalProfit = finalTotal - totalCost;
+    const profitMargin = finalTotal > 0 ? (totalProfit / finalTotal) * 100 : 0;
+
+    // إنشاء الطلب في قاعدة البيانات
     const { data: order, error } = await supabase
       .from('orders')
       .insert({
@@ -46,9 +95,14 @@ export default function CheckoutPage() {
         customer_phone: formData.customer_phone,
         customer_address: formData.customer_address,
         items: cart,
-        total_amount: total,
+        total_amount: finalTotal,
+        total_cost: totalCost,
+        total_profit: totalProfit,
+        profit_margin: profitMargin,
         payment_method: formData.payment_method,
         payment_status: 'pending',
+        discount_amount: discountAmount,
+        coupon_code: appliedCoupon?.code,
       })
       .select()
       .single();
@@ -61,8 +115,53 @@ export default function CheckoutPage() {
       return;
     }
 
+    // تسجيل استخدام الكوبون (إذا وجد)
+    if (appliedCoupon && order) {
+      await recordCouponUsage(appliedCoupon.id, order.id, formData.customer_phone, discountAmount);
+    }
+
+    // معالجة الدفع الإلكتروني إذا تم اختياره وكان YallaPay مفعلاً
+    const isElectronicPayment = ['card', 'mfs'].includes(formData.payment_method);
+    
+    if (isElectronicPayment && isYallaPayEnabled()) {
+      const paymentResult = await createYallaPayPayment({
+        amount: finalTotal,
+        orderId: order.id,
+        orderNumber: orderNumber,
+        customerName: formData.customer_name,
+        customerPhone: formData.customer_phone,
+      });
+
+      if (paymentResult.success && paymentResult.paymentUrl) {
+        clearCart();
+        window.location.href = paymentResult.paymentUrl;
+        return;
+      } else {
+        alert(paymentResult.error || 'حدث خطأ في إنشاء رابط الدفع');
+        setLoading(false);
+        setStep(1);
+        return;
+      }
+    }
+
+    // للدفع عند الاستلام أو إذا كان YallaPay غير مفعل
     clearCart();
     setStep(3);
+    
+    // إرسال إشعارات واتساب
+    if (order) {
+      const customerMessage = getCustomerOrderMessage(orderNumber, formData.customer_name, finalTotal);
+      const merchantMessage = getMerchantNewOrderMessage(
+        orderNumber,
+        formData.customer_name,
+        formData.customer_phone,
+        formData.customer_address,
+        cart,
+        finalTotal
+      );
+      sendWhatsAppMessage(formData.customer_phone, customerMessage);
+      sendWhatsAppMessage(MERCHANT_WHATSAPP, merchantMessage);
+    }
     
     setTimeout(() => {
       router.push(`/success?order=${orderNumber}`);
@@ -149,13 +248,71 @@ export default function CheckoutPage() {
                   value={formData.payment_method}
                   onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
                 >
-                  <option value="cash">الدفع عند الاستلام (كاش)</option>
-                  <option value="bankak">بنكك</option>
-                  <option value="ocash">أوكاش</option>
-                  <option value="fawry">فوري</option>
-                  <option value="nile">بنك النيل</option>
-                  <option value="bank_of_sudan">بنك السودان</option>
+                  <option value="cash">💵 الدفع عند الاستلام (كاش)</option>
+                  <option value="bankak">🏦 بنكك</option>
+                  <option value="ocash">📱 أوكاش</option>
+                  <option value="fawry">📱 فوري</option>
+                  <option value="nile">🏦 بنك النيل</option>
+                  <option value="bank_of_sudan">🏦 بنك السودان</option>
+                  {isYallaPayEnabled() && (
+                    <>
+                      <option value="card">💳 بطاقة بنكية (فيزا/ماستركارد)</option>
+                      <option value="mfs">📱 محفظة إلكترونية</option>
+                    </>
+                  )}
                 </select>
+                
+                {!isYallaPayEnabled() && (
+                  <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                    ⚠️ الدفع الإلكتروني بالبطاقات سيتم تفعيله قريباً
+                  </p>
+                )}
+              </div>
+              
+              {/* قسم الكوبون */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <label className="block text-gray-700 mb-2 flex items-center gap-2">
+                  <Tag size={16} />
+                  كود الخصم
+                </label>
+                {appliedCoupon ? (
+                  <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
+                    <div>
+                      <span className="font-semibold text-green-700">{appliedCoupon.code}</span>
+                      <p className="text-xs text-green-600">خصم {discountAmount} ج.س</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAppliedCoupon(null);
+                        setDiscountAmount(0);
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="أدخل كود الخصم"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading}
+                      className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                    >
+                      {couponLoading ? 'جاري...' : 'تطبيق'}
+                    </button>
+                  </div>
+                )}
+                {couponError && (
+                  <p className="text-red-500 text-sm mt-2">{couponError}</p>
+                )}
               </div>
               
               <button
@@ -163,7 +320,7 @@ export default function CheckoutPage() {
                 disabled={loading}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition duration-200 font-medium w-full"
               >
-                {loading ? 'جاري المعالجة...' : `تأكيد الطلب - ${formatPrice(total)}`}
+                {loading ? 'جاري المعالجة...' : `تأكيد الطلب - ${formatPrice(finalTotal)}`}
               </button>
             </form>
           )}
@@ -203,13 +360,19 @@ export default function CheckoutPage() {
               <span>المجموع الفرعي</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between py-1 text-green-600">
+                <span>الخصم</span>
+                <span>- {formatPrice(discountAmount)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-1">
               <span>الشحن</span>
               <span>{formatPrice(deliveryFee)}</span>
             </div>
             <div className="flex justify-between py-2 text-lg font-bold border-t mt-2 pt-2">
               <span>الإجمالي</span>
-              <span className="text-green-700">{formatPrice(total)}</span>
+              <span className="text-green-700">{formatPrice(finalTotal)}</span>
             </div>
           </div>
           
