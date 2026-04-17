@@ -16,7 +16,7 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
-  swcMinify: true,
+  // swcMinify: true,  // ❌ تم الحذف - أصبح افتراضياً
 };
 
 module.exports = nextConfig;
