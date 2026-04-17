@@ -104,7 +104,7 @@ export default function FAQPage() {
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold gradient-text mb-3">الأسئلة الشائعة</h1>
         <p className="text-gray-500 max-w-2xl mx-auto">
-          إجابات على أكثر الأسئلة شيوعاً عن متجر مالوكا شوب
+          إجابات على أكثر الأسئلة شيوعاً عن متجر ملوكا شوب
         </p>
       </div>
 

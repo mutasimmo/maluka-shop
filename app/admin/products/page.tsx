@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, Product, Category } from '@/lib/supabase';
 import { formatPrice } from '@/lib/utils';
 import { 
   Plus, Edit, Trash2, Eye, Search, 
   Image as ImageIcon, X, Check, Package, Sparkles,
-  TrendingUp, TrendingDown, DollarSign, RefreshCw
+  TrendingUp, TrendingDown, DollarSign, RefreshCw, Upload
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -15,13 +15,15 @@ export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [autoCategorize, setAutoCategorize] = useState(true);
-  const [autoSKU, setAutoSKU] = useState(true); // تفعيل SKU تلقائي
+  const [autoSKU, setAutoSKU] = useState(true);
   const [profitPreview, setProfitPreview] = useState<{ profit: number; margin: number } | null>(null);
-  const [suggestedSKU, setSuggestedSKU] = useState<string>(''); // SKU مقترح
+  const [suggestedSKU, setSuggestedSKU] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -83,9 +85,62 @@ export default function AdminProducts() {
     if (!error && data) setCategories(data);
   };
 
-  // دالة إنشاء SKU تلقائي
+  
+const uploadImage = async (file: File) => {
+  setUploading(true);
+  
+  // إنشاء اسم فريد للصورة
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+  // رفع الصورة إلى Supabase Storage
+  const { data, error: uploadError } = await supabase.storage
+    .from('products')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (uploadError) {
+    console.error('Error uploading image:', uploadError);
+    alert(`حدث خطأ في رفع الصورة: ${uploadError.message}`);
+    setUploading(false);
+    return null;
+  }
+
+  // الحصول على الرابط العام للصورة
+  const { data: publicUrlData } = supabase.storage
+    .from('products')
+    .getPublicUrl(fileName);
+
+  setUploading(false);
+  return publicUrlData.publicUrl;
+};
+
+  // معالج اختيار الصورة
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // التحقق من نوع الملف
+    if (!file.type.startsWith('image/')) {
+      alert('الرجاء اختيار ملف صورة صالح');
+      return;
+    }
+
+    // التحقق من الحجم (حد أقصى 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('حجم الصورة يجب أن لا يتجاوز 5 ميجابايت');
+      return;
+    }
+
+    const imageUrl = await uploadImage(file);
+    if (imageUrl) {
+      setFormData({ ...formData, image_url: imageUrl });
+    }
+  };
+
   const generateSuggestedSKU = async (productName: string) => {
-    // جلب عدد المنتجات الحالية
     const { count, error } = await supabase
       .from('products')
       .select('*', { count: 'exact', head: true });
@@ -93,12 +148,8 @@ export default function AdminProducts() {
     if (error) return;
     
     const nextNumber = ((count || 0) + 1).toString().padStart(4, '0');
-    
-    // أخذ أول 3 حروف من اسم المنتج (للتعريف)
     let prefix = productName.substring(0, 3).toUpperCase();
-    // إزالة الأحرف غير العربية/الإنجليزية
     prefix = prefix.replace(/[^A-Za-z\u0600-\u06FF]/g, '');
-    // إذا كان البادئة فارغة، استخدم 'PRD'
     if (!prefix) prefix = 'PRD';
     
     const sku = `${prefix}-${nextNumber}`;
@@ -106,26 +157,24 @@ export default function AdminProducts() {
     setFormData(prev => ({ ...prev, sku: sku }));
   };
 
-  // دالة تجديد SKU يدوياً
   const regenerateSKU = async () => {
     if (formData.name) {
       await generateSuggestedSKU(formData.name);
     }
   };
+const handleAutoCategorize = async () => {
+  if (!formData.name) return;
+  
+  const { data, error } = await supabase.rpc('auto_categorize_product', {
+    product_name: formData.name,
+    product_description: formData.description
+  });
 
-  const handleAutoCategorize = async () => {
-    if (!formData.name) return;
-    
-    const { data, error } = await supabase.rpc('auto_categorize_product', {
-      product_name: formData.name,
-      product_description: formData.description
-    });
-
-    if (!error && data) {
-      setFormData({ ...formData, category: data });
-    }
-  };
-
+  if (!error && data) {
+    // استخدم callback form لتجنب مشاكل التحديث المتكرر
+    setFormData(prev => ({ ...prev, category: data }));
+  }
+};
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -135,7 +184,6 @@ export default function AdminProducts() {
     const profit = price - costPrice;
     const profitMargin = costPrice > 0 ? (profit / costPrice) * 100 : 0;
 
-    // إنشاء SKU تلقائي إذا كان مفعلاً ولم يدخله المستخدم يدوياً
     let finalSKU = formData.sku;
     if (autoSKU && !editingProduct && (!finalSKU || finalSKU === suggestedSKU)) {
       finalSKU = suggestedSKU;
@@ -197,7 +245,7 @@ export default function AdminProducts() {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    setAutoSKU(false); // عند التعديل، نعطيه الخيار لإدخال SKU يدوياً
+    setAutoSKU(false);
     setFormData({
       name: product.name,
       description: product.description || '',
@@ -235,7 +283,6 @@ export default function AdminProducts() {
     });
   };
 
-  // حساب ربحية المنتج
   const getProfitBadge = (product: Product) => {
     const costPrice = (product as any).cost_price || 0;
     const profit = product.price - costPrice;
@@ -369,7 +416,7 @@ export default function AdminProducts() {
                 );
               })}
             </tbody>
-          </table>
+           </table>
         </div>
 
         {filteredProducts.length === 0 && (
@@ -419,6 +466,42 @@ export default function AdminProducts() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   />
+                </div>
+
+                {/* صورة المنتج - رفع من الجهاز */}
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">صورة المنتج</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="input-field flex-1"
+                      placeholder="رابط الصورة أو ارفع من جهازك"
+                      value={formData.image_url}
+                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                    />
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition flex items-center gap-2"
+                    >
+                      <Upload size={18} />
+                      {uploading ? 'جاري الرفع...' : 'رفع'}
+                    </button>
+                  </div>
+                  {formData.image_url && (
+                    <div className="mt-2 relative w-24 h-24 rounded-lg overflow-hidden border">
+                      <Image src={formData.image_url} alt="معاينة" fill className="object-cover" />
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">يمكنك إدخال رابط صورة أو رفع صورة من جهازك</p>
                 </div>
 
                 {/* أسعار البيع والشراء */}
@@ -605,20 +688,9 @@ export default function AdminProducts() {
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <label className="block text-gray-700 mb-2">رابط الصورة</label>
-                  <input
-                    type="url"
-                    className="input-field"
-                    placeholder="https://example.com/image.jpg"
-                    value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  />
-                </div>
-
                 <div className="flex gap-3">
-                  <button type="submit" disabled={loading} className="btn-primary flex-1">
-                    {loading ? 'جاري الحفظ...' : (editingProduct ? 'تحديث' : 'إضافة')}
+                  <button type="submit" disabled={loading || uploading} className="btn-primary flex-1">
+                    {loading || uploading ? 'جاري الحفظ...' : (editingProduct ? 'تحديث' : 'إضافة')}
                   </button>
                   <button type="button" onClick={closeModal} className="btn-secondary flex-1">
                     إلغاء

@@ -75,7 +75,7 @@ export default function AdminLayout({
               <span className="text-xl">🛍️</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold">مالوكا شوب</h1>
+              <h1 className="text-xl font-bold">ملوكا شوب</h1>
               <p className="text-xs text-gray-400">لوحة التحكم</p>
             </div>
           </div>

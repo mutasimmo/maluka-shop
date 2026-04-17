@@ -59,7 +59,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <div className="flex justify-between items-center">
             <Link href="/" className="text-2xl font-extrabold tracking-tight">
               <span className="bg-gradient-to-r from-yellow-400 to-yellow-200 bg-clip-text text-transparent">
-                مالوكا
+                ملوكا
               </span>
               <span className="text-white"> شوب</span>
               <span className="text-sm text-yellow-300 mr-1">🛍️</span>
@@ -136,7 +136,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <div className="grid md:grid-cols-4 gap-8 text-center md:text-right">
             <div>
               <h3 className="text-2xl font-bold mb-4">
-                <span className="text-yellow-400">مالوكا</span> شوب
+                <span className="text-yellow-400">ملوكا</span> شوب
               </h3>
               <p className="text-gray-300 leading-relaxed">
                 متجر سوداني يقدم أفضل المنتجات المحلية الأصيلة بجودة عالية وأسعار منافسة
@@ -206,7 +206,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           </div>
           
           <div className="border-t border-gray-700 mt-8 pt-6 text-center text-gray-400">
-            <p>© 2026 مالوكا شوب. جميع الحقوق محفوظة</p>
+            <p>© 2026 ملوكا شوب. جميع الحقوق محفوظة</p>
           </div>
         </div>
       </footer>

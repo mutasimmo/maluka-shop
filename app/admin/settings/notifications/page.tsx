@@ -72,7 +72,7 @@ export default function NotificationSettings() {
     }
     
     setTestSending(true);
-    const message = `🔔 *رسالة تجريبية من مالوكا شوب*
+    const message = `🔔 *رسالة تجريبية من ملوكا شوب*
 
 هذه رسالة تجريبية للتأكد من إعدادات الإشعارات.
 
@@ -80,7 +80,7 @@ export default function NotificationSettings() {
 
 📅 التاريخ: ${new Date().toLocaleString('ar')}
 
-شكراً لتسوقك مع مالوكا شوب 🛍️`;
+شكراً لتسوقك مع ملوكا شوب 🛍️`;
     
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${testPhone}&text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');

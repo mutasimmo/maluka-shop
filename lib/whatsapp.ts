@@ -39,7 +39,7 @@ export const sendWhatsAppMessage = (phone: string, message: string): string => {
 export const getCustomerOrderMessage = (orderNumber: string, customerName: string, totalAmount: number): string => {
   return `🛍️ *مرحباً ${customerName}*،
 
-شكراً لتسوقك مع *مالوكا شوب* 🎉
+شكراً لتسوقك مع *ملوكا شوب* 🎉
 
 📋 *تفاصيل طلبك:*
 • رقم الطلب: ${orderNumber}
@@ -68,7 +68,7 @@ export const getMerchantNewOrderMessage = (
     itemsText += `\n${index + 1}. ${item.name} × ${item.quantity} = ${(item.price * item.quantity).toLocaleString()} ج.س`;
   });
 
-  return `🛍️ *طلب جديد - مالوكا شوب* 🚨
+  return `🛍️ *طلب جديد - ملوكا شوب* 🚨
 
 📋 *رقم الطلب:* ${orderNumber}
 👤 *العميل:* ${customerName}
@@ -109,7 +109,7 @@ export const getOrderStatusMessage = (
     failed: 'حدث خطأ في الدفع، يرجى المحاولة مرة أخرى',
   };
 
-  return `🛍️ *تحديث حالة الطلب - مالوكا شوب* ${statusEmojis[status]}
+  return `🛍️ *تحديث حالة الطلب - ملوكا شوب* ${statusEmojis[status]}
 
 مرحباً ${customerName}،
 
@@ -130,7 +130,7 @@ export const getMerchantStatusUpdateMessage = (
   newStatus: string,
   updatedBy: string
 ): string => {
-  return `📋 *تحديث حالة الطلب - مالوكا شوب*
+  return `📋 *تحديث حالة الطلب - ملوكا شوب*
 
 رقم الطلب: ${orderNumber}
 الحالة السابقة: ${oldStatus}
