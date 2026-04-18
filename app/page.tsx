@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, Star, Truck, Shield, Clock, CreditCard } from 'lucide-react';
 import FeatureIcons from '@/components/FeatureIcons';
 import PaymentIcons from '@/components/PaymentIcons';
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const { data: products, error } = await supabase

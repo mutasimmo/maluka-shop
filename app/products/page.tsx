@@ -1,6 +1,8 @@
+
 import type { Metadata } from 'next';
 import { supabase, Product } from '@/lib/supabase';
 import ProductCard from '@/components/ProductCard';
+export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 
 export const metadata: Metadata = {
